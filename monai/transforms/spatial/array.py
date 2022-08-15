@@ -13,6 +13,7 @@ A collection of "vanilla" transforms for spatial operations
 https://github.com/Project-MONAI/MONAI/wiki/MONAI_Design
 """
 import math
+import os
 import warnings
 from copy import deepcopy
 from enum import Enum
@@ -66,6 +67,7 @@ from monai.utils.module import look_up_option
 from monai.utils.type_conversion import (
     convert_data_type,
     convert_to_numpy,
+    convert_to_cupy,
     get_equivalent_dtype,
     get_torch_dtype_from_string,
 )
@@ -103,6 +105,11 @@ __all__ = [
 ]
 
 RandRange = Optional[Union[Sequence[Union[Tuple[float, float], float]], float]]
+# cupy_ndi, HAS_CUPY_NDI = optional_import("cupyx.scipy", name="ndimage")
+# cupy, _ = optional_import("cupy")
+cupy_ndi, HAS_CUPY_NDI = optional_import("scipy", name="ndimage")
+cupy, _ = optional_import("numpy")
+USE_CUPY_RESAMPLE = HAS_CUPY_NDI and os.getenv("USE_CUPY_RESAMPLE", "1") == "1"
 
 
 class SpatialResample(InvertibleTransform, LazyTransform):
@@ -120,7 +127,7 @@ class SpatialResample(InvertibleTransform, LazyTransform):
         self,
         mode: str = GridSampleMode.BILINEAR,
         padding_mode: str = GridSamplePadMode.BORDER,
-        align_corners: bool = False,
+        align_corners: bool = True,
         dtype: DtypeLike = np.float64,
     ):
         """
@@ -302,7 +309,7 @@ class SpatialResample(InvertibleTransform, LazyTransform):
             for idx, d_dst in enumerate(spatial_size[:spatial_rank]):
                 _t_r[idx, -1] = (max(d_dst, 2) - 1.0) / 2.0
             xform = xform @ _t_r
-            if not USE_COMPILED:
+            if not (USE_COMPILED or USE_CUPY_RESAMPLE):
                 _t_l = normalize_transform(
                     in_spatial_size, xform.device, xform.dtype, align_corners=True  # type: ignore
                 )[0]
@@ -2158,23 +2165,32 @@ class Resample(Transform):
             grid_t = grid_t.clone(memory_format=torch.contiguous_format)
         sr = min(len(img_t.shape[1:]), 3)
 
-        if USE_COMPILED:
+        if USE_COMPILED or USE_CUPY_RESAMPLE:
             if self.norm_coords:
                 for i, dim in enumerate(img_t.shape[1 : 1 + sr]):
                     grid_t[i] = (max(dim, 2) / 2.0 - 0.5 + grid_t[i]) / grid_t[-1:]
-            grid_t = moveaxis(grid_t[:sr], 0, -1)  # type: ignore
+            grid_t = grid_t[:sr]
             _padding_mode = self.padding_mode if padding_mode is None else padding_mode
-            bound = 1 if _padding_mode == "reflection" else _padding_mode
             _interp_mode = self.mode if mode is None else mode
-            if _interp_mode == "bicubic":
-                interp = 3
-            elif _interp_mode == "bilinear":
-                interp = 1
-            else:
-                interp = _interp_mode  # type: ignore
-            out = grid_pull(
-                img_t.unsqueeze(0), grid_t.unsqueeze(0), bound=bound, extrapolate=True, interpolation=interp
-            )[0]
+            if USE_COMPILED:
+                bound = 1 if _padding_mode == "reflection" else _padding_mode
+                if _interp_mode == "bicubic":
+                    interp = 3
+                elif _interp_mode == "bilinear":
+                    interp = 1
+                else:
+                    interp = _interp_mode  # type: ignore
+                grid_t = moveaxis(grid_t, 0, -1)  # type: ignore
+                out = grid_pull(
+                    img_t.unsqueeze(0), grid_t.unsqueeze(0), bound=bound, extrapolate=True, interpolation=interp
+                )[0]
+            elif USE_CUPY_RESAMPLE:
+                # img_cupy = convert_to_cupy(img_t, wrap_sequence=True)
+                # grid_cupy = convert_to_cupy(grid_t, wrap_sequence=True)
+                img_cupy = convert_to_numpy(img_t, wrap_sequence=True)
+                grid_cupy = convert_to_numpy(grid_t, wrap_sequence=True)
+                out = cupy.stack([cupy_ndi.map_coordinates(chn, grid_cupy, order=5) for chn in img_cupy])
+                out = convert_to_dst_type(out, dst=img_t)[0]
         else:
             if self.norm_coords:
                 for i, dim in enumerate(img_t.shape[1 : 1 + sr]):
