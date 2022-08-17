@@ -2087,7 +2087,11 @@ class Resample(Transform):
                 else:
                     interp = _interp_mode  # type: ignore
                 out = grid_pull(
-                    img_t.unsqueeze(0), grid_t.unsqueeze(0), bound=bound, extrapolate=True, interpolation=interp
+                    img_t.unsqueeze(0),
+                    grid_t.unsqueeze(0).to(img_t),
+                    bound=bound,
+                    extrapolate=True,
+                    interpolation=interp,
                 )[0]
             elif self._backend == TransformBackends.NUMPY:
                 is_cuda = img_t.is_cuda
