@@ -8,6 +8,7 @@
 [![PyPI version](https://badge.fury.io/py/monai.svg)](https://badge.fury.io/py/monai)
 [![docker](https://img.shields.io/badge/docker-pull-green.svg?logo=docker&logoColor=white)](https://hub.docker.com/r/projectmonai/monai)
 [![conda](https://img.shields.io/conda/vn/conda-forge/monai?color=green)](https://anaconda.org/conda-forge/monai)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fwyli%2FMONAI.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fwyli%2FMONAI?ref=badge_shield)
 
 ![Supported Python versions](https://raw.githubusercontent.com/Project-MONAI/MONAI/dev/docs/images/python.svg)
 [![CI Build](https://github.com/Project-MONAI/MONAI/workflows/build/badge.svg?branch=dev)](https://github.com/Project-MONAI/MONAI/commits/dev)
@@ -74,3 +75,7 @@ Ask and answer questions over on [MONAI's GitHub Discussions tab](https://github
 - conda-forge: https://anaconda.org/conda-forge/monai
 - Weekly previews: https://pypi.org/project/monai-weekly/
 - Docker Hub: https://hub.docker.com/r/projectmonai/monai
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fwyli%2FMONAI.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fwyli%2FMONAI?ref=badge_large)
